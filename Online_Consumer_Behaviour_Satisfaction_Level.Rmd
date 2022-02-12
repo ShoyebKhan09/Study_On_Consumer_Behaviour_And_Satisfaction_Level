@@ -1,0 +1,325 @@
+---
+title: "Statistics&Econometrics_Project_GP_04"
+author: "Shoyeb_Khan_2021H1540806P"
+date: "01/11/2021"
+output: word_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## R Markdown
+
+This is an R Markdown document. Markdown is a simple formatting syntax for authoring HTML, PDF, and MS Word documents. For more details on using R Markdown see <http://rmarkdown.rstudio.com>.
+
+When you click the **Knit** button a document will be generated that includes both content as well as the output of any embedded R code chunks within the document. You can embed an R code chunk like this:
+
+```{r cars}
+summary(cars)
+```
+
+```{r}
+
+###
+
+# "Administrative", "Administrative Duration", "Informational", "Informational Duration", "Product Related" and "Product Related Duration" represent the number of different types of pages visited by the visitor in that session and total time spent in each of these page categories. The values of these features are derived from the URL information of the pages visited by the user and updated in real time when a user takes an action, e.g. moving from one page to another. The "Bounce Rate", "Exit Rate" and "Page Value" features represent the metrics measured by "Google Analytics" for each page in the e-commerce site. The value of "Bounce Rate" feature for a web page refers to the percentage of visitors who enter the site from that page and then leave ("bounce") without triggering any other requests to the analytics server during that session. The value of "Exit Rate" feature for a specific web page is calculated as for all pageviews to the page, the percentage that were the last in the session. The "Page Value" feature represents the average value for a web page that a user visited before completing an e-commerce transaction. The "Special Day" feature indicates the closeness of the site visiting time to a specific special day (e.g. Mother’s Day, Valentine's Day) in which the sessions are more likely to be finalized with transaction. The value of this attribute is determined by considering the dynamics of e-commerce such as the duration between the order date and delivery date. For example, for Valentin's day, this value takes a nonzero value between February 2 and February 12, zero before and after this date unless it is close to another special day, and its maximum value of 1 on February 8. The dataset also includes operating system, browser, region, traffic type, visitor type as returning or new visitor, a Boolean value indicating whether the date of the visit is weekend, and month of the year.
+
+###
+
+## Loading the Libraries.
+
+library(dplyr)
+library(tidyverse)
+library(corrplot)
+library(caret)
+library(janitor)
+library(psych)
+library(reshape)
+library(moments)
+library(caTools)
+library(rpart)
+library(aod)
+library(gplots)
+
+## Reading the CSV file.
+data_set_cst_ol <- read.csv('online_shoppers_intention.csv') 
+
+View(data_set_cst_ol)
+
+data_set_cst_ol %>%  glimpse()
+
+data_set_cst_ol_table <- data_set_cst_ol
+
+## Creating the Dummy Variable on the features "Visitor Type" and "Weekend".
+
+data_set_categorical <- caret::dummyVars("~ VisitorType+Weekend",data = data_set_cst_ol)
+
+data_set_categorical <- data.frame(predict(data_set_categorical,newdata = data_set_cst_ol))
+
+data_set_categorical %>%  glimpse()
+
+data_set_cst_ol <- data_set_cst_ol %>% select(-c(Month,VisitorType,Weekend))
+
+data_set_cst_ol['New_Visitor'] <- data_set_categorical$VisitorTypeNew_Visitor
+
+data_set_cst_ol['Other'] <- data_set_categorical$VisitorTypeOther
+
+data_set_cst_ol['Returning_Visitor'] <- data_set_categorical$VisitorTypeReturning_Visitor
+
+data_set_cst_ol['Weekend_False'] <- data_set_categorical$WeekendFALSE
+
+data_set_cst_ol['Weekend_True'] <- data_set_categorical$WeekendTRUE
+
+data_set_cst_ol$Revenue <- ifelse(data_set_cst_ol$Revenue==TRUE,1,0)
+
+data_set_cst_ol %>%  glimpse()
+
+describe(data_set_cst_ol)
+
+corr_matrix <- cor(data_set_cst_ol)
+
+corrplot(corr_matrix,method = 'square',order = 'hclust',addrect =  2,addCoefasPercent = TRUE)
+
+det(corr_matrix)
+
+########################################Density Plots###########################
+data_set_cst_ol %>% keep(is.numeric) %>% gather() %>% ggplot(aes(value)) + 
+facet_wrap(~ key, scales = "free")+ geom_density(color = "blue",fill = "red")
+
+#############################Remove the Duplicates Values#######################
+duplicates <- duplicated(data_set_cst_ol)
+data_set_cst_ol_2 <- data_set_cst_ol[!duplicates,]
+
+View(data_set_cst_ol_2)
+
+#######Identify and Remove the outliers keeping 99.5% of the data ##############
+x_prev <- data_set_cst_ol_2[,1:20]
+x_prev <- x_prev[,-15]
+
+y_prev <- data_set_cst_ol_2[,15]
+
+for( i in 1 : 19){
+  boxplot(x_prev[,i],main = names(x_prev)[i])
+}
+
+######################################Identifying the Outliers##################
+data_set_cst_ol_3 <- subset(data_set_cst_ol_2,!(data_set_cst_ol_2$Administrative > quantile(data_set_cst_ol_2$Administrative,probs = c(0.01,0.99))[2] 
+|data_set_cst_ol_2$Administrative < quantile(data_set_cst_ol_2$Administrative,probs = c(0.01,0.99))[1]  ))
+
+data_set_cst_ol_3 <- subset(data_set_cst_ol_2,!(data_set_cst_ol_2$Administrative_Duration > quantile(data_set_cst_ol_2$Administrative_Duration,probs = c(0.01,0.99))[2] |data_set_cst_ol_2$Administrative_Duration < quantile(data_set_cst_ol_2$Administrative_Duration,probs = c(0.01,0.99))[1]))
+
+data_set_cst_ol_3 <- subset(data_set_cst_ol_2,!(data_set_cst_ol_2$Informational > quantile(data_set_cst_ol_2$Informational,probs = c(0.01,0.99))[2]|data_set_cst_ol_2$Informational < quantile(data_set_cst_ol_2$Informational,probs = c(0.01,0.99))[1]))
+
+data_set_cst_ol_3 <- subset(data_set_cst_ol_2,!(data_set_cst_ol_2$Informational_Duration > quantile(data_set_cst_ol_2$Informational_Duration,probs = c(0.01,0.99))[2] | data_set_cst_ol_2$Informational_Duration < quantile(data_set_cst_ol_2$Informational_Duration,probs = c(0.01,0.99))[1]  ))
+
+data_set_cst_ol_3 <- subset(data_set_cst_ol_2,!(data_set_cst_ol_2$ProductRelated > quantile(data_set_cst_ol_2$ProductRelated,probs = c(0.01,0.99))[2] | data_set_cst_ol_2$ProductRelated < quantile(data_set_cst_ol_2$ProductRelated,probs = c(0.01,0.99))[1]))
+
+data_set_cst_ol_3 <- subset(data_set_cst_ol_2,!(data_set_cst_ol_2$ProductRelated_Duration > quantile(data_set_cst_ol_2$ProductRelated_Duration,probs = c(0.01,0.99))[2]| data_set_cst_ol_2$ProductRelated_Duration < quantile(data_set_cst_ol_2$ProductRelated_Duration,probs = c(0.01,0.99))[1]))
+
+data_set_cst_ol_3 <- subset(data_set_cst_ol_2,!(data_set_cst_ol_2$BounceRates > quantile(data_set_cst_ol_2$BounceRates,probs = c(0.01,0.99))[2] | data_set_cst_ol_2$BounceRates < quantile(data_set_cst_ol_2$BounceRates,probs = c(0.01,0.99))[1] ))
+
+data_set_cst_ol_3 <- subset(data_set_cst_ol_2,!(data_set_cst_ol_2$ExitRates > quantile(data_set_cst_ol_2$ExitRates,probs = c(0.01,0.99))[2] | data_set_cst_ol_2$ExitRates < quantile(data_set_cst_ol_2$ExitRates,probs = c(0.01,0.99))[1] ))
+
+data_set_cst_ol_3 <- subset(data_set_cst_ol_2,!(data_set_cst_ol_2$PageValues > quantile(data_set_cst_ol_2$PageValues,probs = c(0.01,0.99))[2] | data_set_cst_ol_2$PageValues < quantile(data_set_cst_ol_2$PageValues,probs = c(0.01,0.99))[1] ))
+
+data_set_cst_ol_3 <- subset(data_set_cst_ol_2,!(data_set_cst_ol_2$SpecialDay > quantile(data_set_cst_ol_2$SpecialDay,probs = c(0.01,0.99))[2]| data_set_cst_ol_2$SpecialDay < quantile(data_set_cst_ol_2$SpecialDay,probs = c(0.01,0.99))[1]))
+
+data_set_cst_ol_3 <- subset(data_set_cst_ol_2,!(data_set_cst_ol_2$OperatingSystems > quantile(data_set_cst_ol_2$OperatingSystems,probs = c(0.01,0.99))[2] | data_set_cst_ol_2$OperatingSystems < quantile(data_set_cst_ol_2$OperatingSystems,probs = c(0.01,0.99))[1]))
+
+data_set_cst_ol_3 <- subset(data_set_cst_ol_2,!(data_set_cst_ol_2$Browser > 
+quantile(data_set_cst_ol_2$Browser,probs = c(0.01,0.99))[2] | data_set_cst_ol_2$Browser < 
+quantile(data_set_cst_ol_2$Browser,probs = c(0.01,0.99))[1] ))
+
+data_set_cst_ol_3 <- subset(data_set_cst_ol_2,!(data_set_cst_ol_2$Region > 
+quantile(data_set_cst_ol_2$Region,probs = c(0.01,0.99))[2]| data_set_cst_ol_2$Region < 
+quantile(data_set_cst_ol_2$Region,probs = c(0.01,0.99))[1]))
+
+data_set_cst_ol_3 <- subset(data_set_cst_ol_2,!(data_set_cst_ol_2$TrafficType > quantile(data_set_cst_ol_2$TrafficType,probs = c(0.01,0.99))[2] | data_set_cst_ol_2$TrafficType < quantile(data_set_cst_ol_2$TrafficType,probs = c(0.01,0.99))[1]))
+
+data_set_cst_ol_3 <- subset(data_set_cst_ol_2,!(data_set_cst_ol_2$New_Visitor > quantile(data_set_cst_ol_2$New_Visitor,probs = c(0.01,0.99))[2] | data_set_cst_ol_2$New_Visitor < quantile(data_set_cst_ol_2$New_Visitor,probs = c(0.01,0.99))[1] ))
+
+data_set_cst_ol_3 <- subset(data_set_cst_ol_2,!(data_set_cst_ol_2$Other > 
+quantile(data_set_cst_ol_2$Other,probs = c(0.01,0.99))[2] | data_set_cst_ol_2$Other < quantile(data_set_cst_ol_2$Other,probs = c(0.01,0.99))[1]))
+
+data_set_cst_ol_3 <- subset(data_set_cst_ol_2,!(data_set_cst_ol_2$Returning_Visitor > quantile(data_set_cst_ol_2$Returning_Visitor,probs = c(0.01,0.99))[2] |
+data_set_cst_ol_2$Returning_Visitor < quantile(data_set_cst_ol_2$Returning_Visitor,probs = c(0.01,0.99))[1]))
+
+data_set_cst_ol_3 <- subset(data_set_cst_ol_2,!(data_set_cst_ol_2$Weekend_False > quantile(data_set_cst_ol_2$Weekend_False,probs = c(0.01,0.99))[2] | data_set_cst_ol_2$Weekend_False < quantile(data_set_cst_ol_2$Weekend_False,probs = c(0.01,0.99))[1] ))
+
+data_set_cst_ol_3 <- subset(data_set_cst_ol_2,!(data_set_cst_ol_2$Weekend_True > 
+quantile(data_set_cst_ol_2$Weekend_True,probs = c(0.01,0.99))[2] | data_set_cst_ol_2$Weekend_True < quantile(data_set_cst_ol_2$Weekend_True,probs = c(0.01,0.99))[1]))
+
+data_set_cst_ol_3 <- subset(data_set_cst_ol_2,!(data_set_cst_ol_2$Revenue > 
+quantile(data_set_cst_ol_2$Revenue,probs = c(0.01,0.99))[2] | data_set_cst_ol_2$Revenue <
+quantile(data_set_cst_ol_2$Revenue,probs = c(0.01,0.99))[1]))
+
+View(data_set_cst_ol_3)
+
+#################Removing the Skewness in the Data##############################
+
+data_set_cst_ol_3$ExitRates_log10 <- log10(0.0025+ data_set_cst_ol_3$ExitRates)
+data_set_cst_ol_3$ExitRates_log10 <- data_set_cst_ol_3$ExitRates_log10
+data_set_cst_ol_3 <- select(data_set_cst_ol_3,-ExitRates)
+
+#data_set_cst_ol_3$ProductRelated_Duration_log <- log10(0.05+data_set_cst_ol_3$ProductRelated_Duration) 
+#data_set_cst_ol_3$Administrative_Duration_log <- log10(0.05+data_set_cst_ol_3$Administrative_Duration) 
+#data_set_cst_ol_3$Informational_Duration_log <- log10(0.05+data_set_cst_ol_3$Informational_Duration) 
+
+
+View(data_set_cst_ol_3)
+names(data_set_cst_ol_3)
+
+data_set_cst_ol_3 <- select(data_set_cst_ol_3,c(Administrative,Administrative_Duration,Informational,
+                                                Informational_Duration,ProductRelated,ProductRelated_Duration,
+                                                PageValues,BounceRates,SpecialDay,OperatingSystems,Browser,Region,
+                                                TrafficType,New_Visitor,Returning_Visitor,Other,Weekend_False,
+                                                Weekend_True,ExitRates_log10,BounceRates,Revenue))
+
+
+data_set_cst_ol_3 %>% keep(is.numeric) %>% gather() %>% ggplot(aes(value)) + facet_wrap(~ key, scales = "free")+
+  geom_density(color = "blue",fill = "red")
+
+View(data_set_cst_ol_3)
+
+write.csv(data_set_cst_ol_3,"data_set_cst_ol.csv")
+
+p <- read.csv("data_set_cst_ol")
+
+View(p)
+
+describe(data_set_cst_ol_3)
+
+#########################Box Plot ##############################################
+x <- data_set_cst_ol_3[,1:20]
+x <- x[,-4]
+y <- data_set_cst_ol_3[,4]
+for( i in 1 : 19){
+  boxplot(x[,i],main = names(x)[i])
+}
+#########################Correlation Plot#######################################
+corr_matrix <- cor(data_set_cst_ol_3)
+corrplot(corr_matrix,method = 'square',order = 'hclust',addrect =  2)
+
+describe(data_set_cst_ol_3)
+
+#########################Building Contingency Table)#############################
+View(data_set_cst_ol_table)
+
+#Contingency table for Visitor Type.
+tab_visitor <- table(data_set_cst_ol_table$VisitorType,data_set_cst_ol_table$Revenue)
+mosaicplot(tab_visitor)
+balloonplot(tab_visitor,show.margins = TRUE)
+chisq.test(tab_visitor)
+
+#Contingency table for Weekend.
+tab_weekend <- table(data_set_cst_ol_table$Weekend,data_set_cst_ol_table$Revenue)
+mosaicplot(tab_weekend)
+balloonplot(tab_weekend)
+chisq.test(tab_weekend)
+
+#Contingency table for Region.
+tab_region <- table(data_set_cst_ol_table$Revenue,data_set_cst_ol_table$Region)
+mosaicplot(tab_region)
+balloonplot(tab_region)
+chisq.test(tab_region)
+
+#Contingency table for Special Day.
+tab_special_day <- table(data_set_cst_ol_table$Revenue,data_set_cst_ol_table$SpecialDay)
+mosaicplot(tab_special_day)
+balloonplot(tab_special_day)
+chisq.test(tab_special_day)
+
+############################Creating Training and Testing Data set###############
+names(data_set_cst_ol_3)
+
+split_values <- sample.split(data_set_cst_ol_3$Revenue,SplitRatio = 0.65)
+
+#data_set_cst_ol_4 <- data_set_cst_ol_3[,-20]
+
+train_set <- subset(data_set_cst_ol_3,split_values == 1)
+test_set <- subset(data_set_cst_ol_3,split_values == 0)
+test_set_01 <- select(test_set,-c(Revenue))
+
+write.csv(test_set_01,"test_set_01.csv")
+
+View(test_set_01)
+
+train_set_01 <- select(train_set,-c(Other,Weekend_False))
+
+model_one <- glm(Revenue ~., data = train_set_01, family = "binomial")
+
+summary(model_one)
+
+confint(model_one)
+
+wald.test(b= coef(model_one),Sigma = vcov(model_one), Terms = 1:18)
+
+test_set_01 <- select(test_set,-c(Revenue,Weekend_False))
+
+prob_one <- predict(model_one,newdata = test_set_01,type = "response")
+
+glm_pred <- ifelse(prob_one > 0.5,1,0)
+
+cmp <- data.frame(glm_pred,test_set$Revenue)
+
+View(cmp)
+
+#Building Classification Model 
+model_class <- rpart(Revenue ~.,data = train_set)
+
+result_class <- predict(model_class,test_set)
+
+cmp <- data.frame(round(result_class),test_set$Revenue)
+
+
+################################################################################
+#Replacing the NA's values 
+#data_set_cst_ol_3 <- #replace(data_set_cst_ol_3,TRUE,lapply(data_set_cst_ol_3,na.aggregate))
+
+
+#Determine level of skew (greater than +-1 is very high skweness , +-0.5 #moderate,)
+skewness(data_set_cst_ol_3$ExitRates)
+
+describe(data_set_cst_ol_3)
+
+data_set_cst_ol_3$ExitRates <- log10(data_set_cst_ol_3$ExitRates)
+skewness(data_set_cst_ol_3$ExitRates)
+
+data_set_cst_ol_2$ExitRates
+
+typeof(data_set_cst_ol_3$ExitRates)
+
+################################################################################
+################################################################################
+
+parallel_r <- fa.parallel(data_set_cst_nt)
+
+fa.none <- fa(r=data_set_cst_nt,nfactors = 4,fm="pa",max.iter=100,rotate="varimax") 
+
+factanal(data_set_cst_nt,factors =  5, scores =  "regression")
+
+fa.diagram(fa.none)
+
+
+##=======================================================================############
+
+data_set_cst_pt <- data_set_cst_ol %>% select(-c(Month,VisitorType,Weekend))
+
+data_set_cst_pt %>%  glimpse()
+
+data_set_cst_pt$Revenue <- as.factor(data_set_cst_pt$Revenue)
+
+data_set_cst_pt$Revenue <- ifelse(data_set_cst_pt$Revenue == "TRUE",1,0)
+
+rpart <- train(Revenue ~ .,data = data_set_cst_pt,method = 'rpart')
+
+varImp(rpart)
+
+
+rpart <- train(Revenue ~ .,data = data_set_cst_pt,method = 'RRF')
+
+
+
+```
+
